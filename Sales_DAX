@@ -1,0 +1,129 @@
+--Calendar function:
+Calendar = ADDCOLUMNS ( CALENDAR (DATE(2012,1,1), DATE(2018,8,31)), "DateAsInteger", FORMAT ( [Date], "YYYYMMDD" ), "Year", YEAR ( [Date] ), "MonthNo", FORMAT ( [Date], "MM" ), "YearMonthNo", FORMAT ( [Date], "YYYY/MM" ), "YearMonth", FORMAT ( [Date], "YYYY/mmm" ), "MonthShort", FORMAT ( [Date], "mmm" ), "MonthLong", FORMAT ( [Date], "mmmm" ), "WeekNo", WEEKDAY ( [Date] ), "WeekDay", FORMAT ( [Date], "dddd" ), "WeekDayShort", FORMAT ( [Date], "dddd" ), "Quarter", "Q" & FORMAT ( [Date], "Q" ), "YearQuarter", FORMAT ( [Date], "YYYY" ) & "/Q" & FORMAT ( [Date], "Q" ), "YYYY-MM-DD", FORMAT ( [Date], "YYYY-MM-DD" ))
+
+--Slicer
+N = GENERATESERIES(3, 12, 3)
+
+--
+4 Weeks Avg Sales = 
+CALCULATE(
+    SUM(CustomerSales[Invoice Amount]),
+    DATESINPERIOD('Calendar'[Date], LASTDATE('Calendar'[Date]), 28, DAY)
+) / 
+CALCULATE(
+    DISTINCTCOUNT('Calendar'[Date]),
+    DATESINPERIOD('Calendar'[Date], LASTDATE('Calendar'[Date]), 28, DAY)
+)
+
+--
+Sales YTD = CALCULATE(sum(CustomerSales[Invoice Amount]), DATESYTD('Calendar'[Date]))
+
+-- 
+Sales YTD Last Year = 
+CALCULATE( [Sales YTD] , 
+	SAMEPERIODLASTYEAR( 'Calendar'[Date] ))
+  
+--
+Top15CustomerBySales = 
+RANKX(
+	ALLSELECTED(CustomerSales[Ship to name])
+	,CALCULATE([Sales Change %])
+)
+
+
+Total Sales = SUM(CustomerSales[Invoice Amount])
+
+Total Sales YTD Last Year = 
+CALCULATE( [Total Sales] , 
+	SAMEPERIODLASTYEAR( 'Calendar'[Date] ))
+  
+Cumulative Sales = 
+CALCULATE( 
+	[Total Sales] , 
+		FILTER( 
+			ALLSELECTED( 'Calendar' ),
+			'Calendar'[Date] <= MAX( 'Calendar'[Date] )
+			)
+		)
+    
+Cumulative Sales LY = 
+CALCULATE( 
+	[Total Sales YTD Last Year] , 
+		FILTER( 
+			ALLSELECTED( 'Calendar' ),
+			'Calendar'[Date] <= MAX( 'Calendar'[Date] )
+			)
+		)
+    
+--
+RollingSales12M = 
+    CALCULATE( 
+        [Total Sales] - [Total Sales YTD Last Year],
+            FILTER( 
+                ALL( 'Calendar' ),
+                'Calendar'[Date] <= MAX('Calendar'[Date])
+                )
+            )
+            
+            
+            
+            
+            
+New Customers = 
+COUNTROWS (
+    FILTER (
+        ADDCOLUMNS (
+            VALUES ( CustomerSales[Ship to name] ),
+            "PreviousSales", CALCULATE (
+                COUNTROWS ( CustomerSales ),
+                FILTER (
+                    ALL ('Calendar'),
+                    'Calendar'[Date] < MIN ( 'Calendar'[Date] )
+                )
+            )
+        ),
+        [PreviousSales] = 0
+    )
+)
+
+
+Returning Customers = 
+COUNTROWS (
+    CALCULATETABLE (
+        VALUES ( CustomerSales[Ship to name] ),
+        VALUES ( CustomerSales[Ship to name] ),
+        FILTER (
+            ALL ( 'Calendar' ),
+            'Calendar'[Date] < MIN ( 'Calendar'[Date] )
+        )
+    )
+)
+
+
+Sales (Last N months) = 
+CALCULATE (
+    SUM ( CustomerSales[Invoice Amount] ),
+    DATESINPERIOD ( 'Calendar'[Date], MAX ('Calendar'[Date] ), -N[N Value], MONTH)
+)
+
+Sales (Prior N Months) = 
+var SalesLast2NMonths  = CALCULATE (
+    SUM ( CustomerSales[Invoice Amount] ),
+    DATESINPERIOD ( 'Calendar'[Date], MAX ('Calendar'[Date] ), -N[N Value] * 2, MONTH)
+)
+RETURN SalesLast2NMonths - [Sales (Last N months)]
+            
+ RollingOrders12M = 
+    CALCULATE( 
+        [Total Orders] - CALCULATE([Total Orders] , SAMEPERIODLASTYEAR( 'Calendar'[Date])),
+            FILTER( 
+                ALL( 'Calendar' ),
+                'Calendar'[Date] <= MAX('Calendar'[Date])
+                )
+            )
+            
+  Sales Monthly Average = AVERAGEX(VALUES('Calendar'[YearMonthNo]), [Total Sales]) 
+  Sales Latest month = CALCULATE([Total Sales], 
+                                FILTER('Calendar', YEAR('Calendar'[Date]) = YEAR(MAX(CustomerSales[Order Date])) && MONTH('Calendar'[Date]) = MONTH(MAX(CustomerSales[Order Date])))
+                                )
+            
